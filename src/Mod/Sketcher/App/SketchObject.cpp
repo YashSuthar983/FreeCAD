@@ -8826,6 +8826,22 @@ void SketchObject::rebuildExternalGeometry(std::optional<ExternalToAdd> extToAdd
 {
     Base::StateLocker lock(managedoperation, true); // no need to check input data validity as this is an sketchobject managed operation.
 
+    // Analyze the state of existing external geometries to infer the desired state for new ones.
+    // If any geometry from a source link is "defining", we'll treat the whole link as "defining".
+    std::map<std::string, bool> linkIsDefiningMap;
+    for (const auto& geo : ExternalGeo.getValues()) {
+        auto egf = ExternalGeometryFacade::getFacade(geo);
+        if (!egf->getRef().empty()) {
+            bool isDefining = egf->testFlag(ExternalGeometryExtension::Defining);
+            if (linkIsDefiningMap.find(egf->getRef()) == linkIsDefiningMap.end()) {
+                linkIsDefiningMap[egf->getRef()] = isDefining;
+            }
+            else {
+                linkIsDefiningMap[egf->getRef()] = linkIsDefiningMap[egf->getRef()] && isDefining;
+            }
+        }
+    }
+
     // get the actual lists of the externals
     auto Types       = ExternalTypes.getValues();
     auto Objects     = ExternalGeometry.getValues();
@@ -9135,10 +9151,24 @@ void SketchObject::rebuildExternalGeometry(std::optional<ExternalToAdd> extToAdd
 
     // now update the geometries
     for(auto &geos : newGeos) {
+        if (geos.empty()) {
+            continue;
+        }
+
+        // Get the reference key for this group of geometries. All geos in this vector share the same ref.
+        const std::string& key = ExternalGeometryFacade::getFacade(geos.front().get())->getRef();
+        auto itKey = linkIsDefiningMap.find(key);
+        bool hasLinkState = itKey != linkIsDefiningMap.end();
+        bool isLinkDefining = hasLinkState ? itKey->second : false;
+
         for(auto &geo : geos) {
             auto it = externalGeoMap.find(GeometryFacade::getId(geo.get()));
             if(it == externalGeoMap.end()) {
                 // This is a new geometries.
+                // Set its defining state based on the inferred state of its parent link.
+                if (hasLinkState) {
+                    ExternalGeometryFacade::getFacade(geo.get())->setFlag(ExternalGeometryExtension::Defining, isLinkDefining);
+                }
                 geoms.push_back(geo.release());
                 continue;
             }
@@ -11408,6 +11438,17 @@ Data::IndexedName SketchObject::checkSubName(const char *subname) const{
         int posId = static_cast<int>(PointPos::none);
         if ((iss >> sep >> posId) && sep == 'v') {
             int idx = getVertexIndexGeoPos(geoId, static_cast<PointPos>(posId));
+
+            // Outside edit-mode circles exposes the seam point but not the center, while in edit-mode we expose the center but not the seam.
+            // getVertexIndexGeoPos searching for a circle start point (g1v1 for example) (which happens outside of edit mode) will fail.
+            // see https://github.com/FreeCAD/FreeCAD/issues/25089
+            // The following fix works because circles have always 1 vertex, whether in or out of edit mode.
+            if (idx < 0 && (static_cast<PointPos>(posId) == PointPos::start || static_cast<PointPos>(posId) == PointPos::end)) {
+                if (geo->is<Part::GeomCircle>() || geo->is<Part::GeomEllipse>()) {
+                    idx = getVertexIndexGeoPos(geoId, PointPos::mid);
+                }
+            }
+
             if (idx < 0) {
                 FC_ERR("invalid subname " << subname);
                 return Data::IndexedName();
