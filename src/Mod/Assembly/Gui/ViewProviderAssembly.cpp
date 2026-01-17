@@ -1406,7 +1406,7 @@ void ViewProviderAssembly::applyIsolationRecursively(
     }
     else {  // vpg
         state.selectable = vpg->Selectable.getValue();
-        state.shapeMaterial = vpg->ShapeAppearance.getValue()[0];
+        state.shapeAppearance = vpg->ShapeAppearance.getValues();
     }
     stateBackup[current] = state;
 
@@ -1524,7 +1524,7 @@ void ViewProviderAssembly::clearIsolate()
                      Gui::Application::Instance->getViewProvider(component)
                  )) {
             vpg->Selectable.setValue(state.selectable);
-            vpg->ShapeAppearance.setValue(state.shapeMaterial);
+            vpg->ShapeAppearance.setValues(state.shapeAppearance);
         }
     }
 

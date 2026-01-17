@@ -271,6 +271,8 @@ private:
         // For Links
         bool overrideMaterial;
         App::Material shapeMaterial;
+        // store all per face colors
+        std::vector<App::Material> shapeAppearance;
     };
 
     std::unordered_map<App::DocumentObject*, ComponentState> stateBackup;
