@@ -685,17 +685,39 @@ void Command::openCommand(const char* sCmdName)
     if (!sCmdName) {
         sCmdName = "Command";
     }
-    App::GetApplication().setActiveTransaction(sCmdName);
+    int id = App::GetApplication().setActiveTransaction(sCmdName);
+    if (Gui::Control().activeDialog()) {
+        QVariant prop = Gui::Control().activeDialog()->property("transactionId");
+        if (!prop.isValid() || prop.toInt() == 0) {
+            Gui::Control().activeDialog()->setProperty("transactionId", id);
+        }
+    }
 }
 
 void Command::commitCommand()
 {
-    App::GetApplication().closeActiveTransaction();
+    int id = 0;
+    if (Gui::Control().activeDialog()) {
+        QVariant prop = Gui::Control().activeDialog()->property("transactionId");
+        if (prop.isValid() && prop.toInt() != 0) {
+            id = prop.toInt();
+            Gui::Control().activeDialog()->setProperty("transactionId", 0);
+        }
+    }
+    App::GetApplication().closeActiveTransaction(false, id);
 }
 
 void Command::abortCommand()
 {
-    App::GetApplication().closeActiveTransaction(true);
+    int id = 0;
+    if (Gui::Control().activeDialog()) {
+        QVariant prop = Gui::Control().activeDialog()->property("transactionId");
+        if (prop.isValid() && prop.toInt() != 0) {
+            id = prop.toInt();
+            Gui::Control().activeDialog()->setProperty("transactionId", 0);
+        }
+    }
+    App::GetApplication().closeActiveTransaction(true, id);
 }
 
 bool Command::hasPendingCommand()

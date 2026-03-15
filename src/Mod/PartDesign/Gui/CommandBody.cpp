@@ -371,6 +371,9 @@ void CmdPartDesignBody::activated(int iMsg)
 
 bool CmdPartDesignBody::isActive()
 {
+    if (Gui::Control().activeDialog()) {
+        return false;
+    }
     return hasActiveDocument();
 }
 
@@ -645,6 +648,9 @@ void CmdPartDesignMigrate::activated(int iMsg)
 
 bool CmdPartDesignMigrate::isActive()
 {
+    if (Gui::Control().activeDialog()) {
+        return false;
+    }
     return hasActiveDocument();
 }
 
@@ -741,6 +747,9 @@ void CmdPartDesignMoveTip::activated(int iMsg)
 
 bool CmdPartDesignMoveTip::isActive()
 {
+    if (Gui::Control().activeDialog()) {
+        return false;
+    }
     return hasActiveDocument();
 }
 
@@ -807,6 +816,9 @@ void CmdPartDesignDuplicateSelection::activated(int iMsg)
 
 bool CmdPartDesignDuplicateSelection::isActive()
 {
+    if (Gui::Control().activeDialog()) {
+        return false;
+    }
     return hasActiveDocument();
 }
 
@@ -1006,6 +1018,9 @@ void CmdPartDesignMoveFeature::activated(int iMsg)
 
 bool CmdPartDesignMoveFeature::isActive()
 {
+    if (Gui::Control().activeDialog()) {
+        return false;
+    }
     return hasActiveDocument();
 }
 
@@ -1203,6 +1218,9 @@ void CmdPartDesignMoveFeatureInTree::activated(int iMsg)
 
 bool CmdPartDesignMoveFeatureInTree::isActive()
 {
+    if (Gui::Control().activeDialog()) {
+        return false;
+    }
     return hasActiveDocument();
 }
 

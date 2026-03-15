@@ -29,6 +29,7 @@
 #include <QSignalMapper>
 
 
+#include <App/Application.h>
 #include <App/ComplexGeoData.h>
 #include <App/Document.h>
 #include <App/DocumentObjectPy.h>
@@ -186,7 +187,7 @@ void PlacementHandler::openTransaction()
 {
     App::Document* activeDoc = App::GetApplication().getActiveDocument();
     if (activeDoc) {
-        activeDoc->openTransaction("Placement");
+        transactionId = App::GetApplication().setActiveTransaction("Placement");
     }
 }
 
@@ -453,24 +454,28 @@ void PlacementHandler::slotActiveDocument(const Gui::Document& doc)
     activatedDocument(doc.getDocument()->getName());
 }
 
-void PlacementHandler::openCommandIfActive(Gui::Document* doc)
+void PlacementHandler::openCommandIfActive(Gui::Document* /*doc*/)
 {
     if (!ignoreTransaction) {
-        doc->openCommand(QT_TRANSLATE_NOOP("Command", "Placement"));
+        transactionId = App::GetApplication().setActiveTransaction(
+            QT_TRANSLATE_NOOP("Command", "Placement")
+        );
     }
 }
 
-void PlacementHandler::commitCommandIfActive(Gui::Document* doc)
+void PlacementHandler::commitCommandIfActive(Gui::Document* /*doc*/)
 {
     if (!ignoreTransaction) {
-        doc->commitCommand();
+        App::GetApplication().closeActiveTransaction(false, transactionId);
+        transactionId = 0;
     }
 }
 
-void PlacementHandler::abortCommandIfActive(Gui::Document* doc)
+void PlacementHandler::abortCommandIfActive(Gui::Document* /*doc*/)
 {
     if (!ignoreTransaction) {
-        doc->abortCommand();
+        App::GetApplication().closeActiveTransaction(true, transactionId);
+        transactionId = 0;
     }
 }
 
@@ -1266,6 +1271,10 @@ bool TaskPlacement::accept()
 
 bool TaskPlacement::reject()
 {
+    if (Gui::Command::hasPendingCommand()) {
+        Gui::Command::abortCommand();
+    }
+
     widget->reject();
     return (widget->result() == QDialog::Rejected);
 }
@@ -1512,7 +1521,7 @@ Py::Object TaskPlacementPy::isAllowedAlterDocument(const Py::Tuple& args)
     if (!PyArg_ParseTuple(args.ptr(), "")) {
         throw Py::Exception();
     }
-    return Py::Boolean(true);
+    return Py::Boolean(false);
 }
 
 Py::Object TaskPlacementPy::isAllowedAlterView(const Py::Tuple& args)

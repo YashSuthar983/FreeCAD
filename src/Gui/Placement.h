@@ -105,6 +105,7 @@ private:
      *  that it's done by the calling instance.
      */
     bool ignoreTransaction;
+    int transactionId {0};
     Connection connectAct;
     /**
      * store these so we can reselect original object
@@ -215,7 +216,7 @@ public:
     void open() override;
     bool isAllowedAlterDocument() const override
     {
-        return true;
+        return false;
     }
     bool isAllowedAlterView() const override
     {

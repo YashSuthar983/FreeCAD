@@ -369,6 +369,9 @@ void CmdPartDesignShapeBinder::activated(int iMsg)
 
 bool CmdPartDesignShapeBinder::isActive()
 {
+    if (Gui::Control().activeDialog()) {
+        return false;
+    }
     return hasActiveDocument();
 }
 
@@ -475,6 +478,9 @@ void CmdPartDesignSubShapeBinder::activated(int iMsg)
 
 bool CmdPartDesignSubShapeBinder::isActive()
 {
+    if (Gui::Control().activeDialog()) {
+        return false;
+    }
     return hasActiveDocument();
 }
 
@@ -558,6 +564,9 @@ void CmdPartDesignClone::activated(int iMsg)
 
 bool CmdPartDesignClone::isActive()
 {
+    if (Gui::Control().activeDialog()) {
+        return false;
+    }
     return getSelection().countObjectsOfType<Part::Feature>() == 1;
 }
 
@@ -590,6 +599,9 @@ void CmdPartDesignNewSketch::activated(int iMsg)
 
 bool CmdPartDesignNewSketch::isActive()
 {
+    if (Gui::Control().activeDialog()) {
+        return false;
+    }
     if (getActiveGuiDocument()) {
         return true;
     }
