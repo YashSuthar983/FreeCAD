@@ -66,18 +66,47 @@ def makeRegularPolygon(
     for i in range(0, sides - 1):
         geoList.append(Part.LineSegment(pointList[i], pointList[i + 1]))
     geoList.append(Part.LineSegment(pointList[sides - 1], pointList[0]))
+    for i in range(0, sides):
+        geoList.append(Part.LineSegment(centerPoint, pointList[i]))
     geoList.append(Part.Circle(centerPoint, App.Vector(0, 0, 1), diffVec.Length))
     geoIndices = sketch.addGeometry(geoList, construction)
 
-    sketch.setConstruction(geoIndices[-1], True)
+    radial_start = sides
+    circle_idx = geoIndices[-1]
+    for i in range(radial_start, radial_start + sides):
+        sketch.setConstruction(geoIndices[i], True)
+    sketch.setConstruction(circle_idx, True)
 
     conList = []
-    for i in range(0, sides - 1):
-        conList.append(Sketcher.Constraint("Coincident", geoIndices[i], 2, geoIndices[i + 1], 1))
-    conList.append(Sketcher.Constraint("Coincident", geoIndices[sides - 1], 2, geoIndices[0], 1))
-    for i in range(0, sides - 1):
-        conList.append(Sketcher.Constraint("Equal", geoIndices[0], geoIndices[i + 1]))
     for i in range(0, sides):
-        conList.append(Sketcher.Constraint("PointOnObject", geoIndices[i], 2, geoIndices[-1]))
+        edge_idx = geoIndices[i]
+        radial_i = geoIndices[radial_start + i]
+        radial_next = geoIndices[radial_start + ((i + 1) % sides)]
+        conList.append(Sketcher.Constraint("Coincident", edge_idx, 1, radial_i, 2))
+        conList.append(Sketcher.Constraint("Coincident", edge_idx, 2, radial_next, 2))
+
+    for i in range(0, sides):
+        conList.append(
+            Sketcher.Constraint("Coincident", geoIndices[radial_start + i], 1, circle_idx, 3)
+        )
+    for i in range(1, sides):
+        conList.append(
+            Sketcher.Constraint("Equal", geoIndices[radial_start], geoIndices[radial_start + i])
+        )
+
+    central_angle = App.Units.Quantity(f"{360.0 / sides} deg")
+    for i in range(0, sides - 1):
+        conList.append(
+            Sketcher.Constraint(
+                "Angle",
+                geoIndices[radial_start + i],
+                1,
+                geoIndices[radial_start + i + 1],
+                1,
+                central_angle,
+            )
+        )
+    conList.append(Sketcher.Constraint("PointOnObject", geoIndices[radial_start], 2, circle_idx))
+
     sketch.addConstraint(conList)
     return
