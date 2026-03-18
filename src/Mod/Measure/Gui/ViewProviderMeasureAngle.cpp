@@ -226,7 +226,6 @@ SbMatrix ViewProviderMeasureAngle::getMatrix()
             xAxis = (loc1 - originVector).Normalized();
         }
         gp_Vec zAxis;
-        gp_Vec yAxis;
 
         if (measurementCase == MeasureAngle::MeasurementCase::EdgeEdge) {
             xAxis = adjustedVector1.Normalized();
@@ -237,22 +236,27 @@ SbMatrix ViewProviderMeasureAngle::getMatrix()
         else {
             zAxis = adjustedVector2.Crossed(adjustedVector1);
         }
-        zAxis.Normalize();
-        yAxis = zAxis.Crossed(xAxis).Normalized();
-        xAxis = zAxis.Crossed(yAxis).Normalized();
+
+        // we need left handed system, to acchive this we invert the x and z axes
+        Base::Vector3d bxAxis(-xAxis.X(), -xAxis.Y(), -xAxis.Z());
+        Base::Vector3d bzAxis(-zAxis.X(), -zAxis.Y(), -zAxis.Z());
+        Base::Rotation rot = Base::Rotation::makeRotationByAxes(bxAxis, {}, bzAxis, "ZXY");
+
+        Base::Matrix4D m4;
+        rot.getValue(m4);
 
         dimSys = SbMatrix(
-            xAxis.X(),
-            yAxis.X(),
-            zAxis.X(),
+            m4[0][0],
+            m4[0][1],
+            m4[0][2],
             dimensionOriginPoint.X(),
-            xAxis.Y(),
-            yAxis.Y(),
-            zAxis.Y(),
+            m4[1][0],
+            m4[1][1],
+            m4[1][2],
             dimensionOriginPoint.Y(),
-            xAxis.Z(),
-            yAxis.Z(),
-            zAxis.Z(),
+            m4[2][0],
+            m4[2][1],
+            m4[2][2],
             dimensionOriginPoint.Z(),
             0.0,
             0.0,
