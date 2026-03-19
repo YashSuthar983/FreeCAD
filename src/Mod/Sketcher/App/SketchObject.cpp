@@ -108,8 +108,10 @@
 
 #include <memory>
 
+#include "Base/BoundBox.h"
 #include "GeoEnum.h"
 #include "SketchObject.h"
+#include "Mod/Part/App/Geometry.h"
 #include "SketchObjectPy.h"
 #include "SolverGeometryExtension.h"
 #include "ExternalGeometryFacade.h"
@@ -881,23 +883,103 @@ int SketchObject::setDatum(int ConstrId, double Datum)
         return (Datum == 0) ? -5 : -4;
 
     if (type == Distance && Datum == 0)
-            return -5;
+        return -5;
 
     // copy the list
     std::vector<Constraint*> newVals(vals);
     double oldDatum = newVals[ConstrId]->getValue();
-    newVals[ConstrId] = newVals[ConstrId]->clone();
-    newVals[ConstrId]->setValue(Datum);
 
+
+    double delta = std::abs(Datum - oldDatum);
+    double sketch_scale = 1.0;
+
+    auto captureControlPoints = [this]() {
+        std::vector<Base::Vector3d> pts;
+        const std::vector<Part::Geometry*>& currentGeos = getInternalGeometry();
+        for (const auto* g : currentGeos) {
+            if (!g)
+                continue;
+            for (auto pos : {PointPos::start, PointPos::mid, PointPos::end}) {
+                pts.push_back(getPoint(g, pos));
+            }
+        }
+        return pts;
+    };
+
+    // get sketch scale from bounding box.
+    {
+        auto points = captureControlPoints();
+        if (!points.empty()) {
+            Base::BoundBox3d bbox;
+            for (const auto& pt : points)
+                bbox.Add(pt);
+            if (bbox.IsValid())
+                sketch_scale = std::max(bbox.CalcDiagonalLength(), 1e-6);
+        }
+    }
+
+    // this value works need revision here
+    double max_displacement = sketch_scale * 2.0;
+
+    std::vector<Base::Vector3d> oldGeoStates = captureControlPoints();
+
+    // initial step size
+    double dLambda = std::min(1.0, sketch_scale / std::max(delta, 1e-6));
+
+    double lambda = 0.0;
+    const double min_dLambda = 1e-4;
+
+    newVals[ConstrId] = newVals[ConstrId]->clone();
+    newVals[ConstrId]->setValue(oldDatum);
     this->Constraints.setValues(std::move(newVals));
 
-    int err = solve();
+    int cnt = 0;
+    int lastErr = 0;
+    while (lambda < 1.0) {
+        double next_lambda = std::min(1.0, lambda + dLambda);
+        double stepDatum = oldDatum + (Datum - oldDatum) * next_lambda;
 
-    if (err)
-        this->Constraints.getValues()[ConstrId]->setValue(oldDatum);// newVals is a shell now
+        // set the constraint value
+        this->Constraints.getValues()[ConstrId]->setValue(stepDatum);
 
-    return err;
+        int err = solve();
+
+        bool step_successful = (err == 0 || err == -2);
+        double max_dist = 0.0;
+
+        std::vector<Base::Vector3d> newGeoStates;
+        if (step_successful) {
+            newGeoStates = captureControlPoints();
+            for (size_t i = 0; i < std::min(oldGeoStates.size(), newGeoStates.size()); ++i) {
+                double dist = Base::Distance(oldGeoStates[i], newGeoStates[i]);
+                max_dist = std::max(max_dist, dist);
+            }
+
+            if (max_dist > max_displacement && dLambda > min_dLambda) {
+                step_successful = false;
+            }
+        }
+
+        if (step_successful) {
+            lambda = next_lambda;
+            oldGeoStates = std::move(newGeoStates);
+        }
+        else {
+            // revert
+            double revertDatum = oldDatum + (Datum - oldDatum) * lambda;
+            this->Constraints.getValues()[ConstrId]->setValue(revertDatum);
+            solve();
+
+            dLambda *= 0.5;
+            lastErr = err;
+        }
+        cnt++;
+    }
+    Base::Console().warning("Number of steps: %d | scale: %f | delta: %f", cnt, sketch_scale, delta);
+    return (lambda >= 1.0) ? 0 : -1;
 }
+
+
 double SketchObject::getDatum(int ConstrId) const
 {
     if (!this->Constraints[ConstrId]->isDimensional()) {
